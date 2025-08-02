@@ -11,11 +11,19 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true, // Enable credentials for CORS
     });
 
-    // Request interceptor to add auth token
+    // Request interceptor to add auth token and debug info
     this.api.interceptors.request.use(
       (config) => {
+        console.log('API Request:', {
+          url: config.url,
+          method: config.method,
+          baseURL: config.baseURL,
+          fullURL: `${config.baseURL}${config.url}`
+        });
+        
         const token = localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -27,8 +35,24 @@ class ApiClient {
 
     // Response interceptor for error handling
     this.api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        console.log('API Response Success:', {
+          url: response.config.url,
+          status: response.status,
+          data: response.data
+        });
+        return response;
+      },
       (error) => {
+        console.error('API Response Error:', {
+          url: error.config?.url,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          code: error.code
+        });
+        
         if (error.response?.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -107,6 +131,19 @@ class ApiClient {
   async healthCheck(): Promise<any> {
     const response = await this.api.get('/health');
     return response.data;
+  }
+
+  // Debug method to check configuration
+  getApiConfig(): any {
+    return {
+      baseURL: import.meta.env.VITE_API_URL || '/api',
+      fullHealthURL: `${import.meta.env.VITE_API_URL || '/api'}/health`,
+      envVars: {
+        VITE_API_URL: import.meta.env.VITE_API_URL,
+        NODE_ENV: import.meta.env.NODE_ENV,
+        MODE: import.meta.env.MODE
+      }
+    };
   }
 }
 

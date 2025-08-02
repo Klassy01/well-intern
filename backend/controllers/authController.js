@@ -29,9 +29,9 @@ const loginValidation = [
 // Generate JWT token
 const generateToken = (userId) => {
   return jwt.sign(
-    { userId },
+    { id: userId },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
   );
 };
 
@@ -51,7 +51,7 @@ const register = async (req, res) => {
     const { email, password } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -64,15 +64,13 @@ const register = async (req, res) => {
     const password_hash = await bcrypt.hash(password, salt);
 
     // Create user
-    const user = new User({
+    const user = await User.create({
       email,
       password_hash
     });
 
-    await user.save();
-
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
@@ -80,7 +78,7 @@ const register = async (req, res) => {
       data: {
         token,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           created_at: user.created_at
         }
@@ -111,8 +109,8 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user
-    const user = await User.findOne({ email }).select('+password_hash');
+    // Find user with password
+    const user = await User.scope('withPassword').findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -130,7 +128,7 @@ const login = async (req, res) => {
     }
 
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.json({
       success: true,
@@ -138,7 +136,7 @@ const login = async (req, res) => {
       data: {
         token,
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           created_at: user.created_at
         }
@@ -157,21 +155,29 @@ const login = async (req, res) => {
 // Get current user (protected route)
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
     res.json({
       success: true,
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           created_at: user.created_at,
           updated_at: user.updated_at
         }
       }
     });
+
   } catch (error) {
-    console.error('Get me error:', error);
+    console.error('Get user error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'

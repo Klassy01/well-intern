@@ -1,5 +1,7 @@
 const { validationResult, body } = require('express-validator');
 const Session = require('../models/Session');
+const User = require('../models/User');
+const { Op } = require('sequelize');
 
 // Validation rules
 const sessionValidation = [
@@ -32,64 +34,80 @@ const getPublicSessions = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    const sessions = await Session.find({ status: 'published' })
-      .populate('user_id', 'email')
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(limit);
+    const { count, rows: sessions } = await Session.findAndCountAll({
+      where: {
+        status: 'published',
+        is_public: true
+      },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'email']
+        }
+      ],
+      order: [['created_at', 'DESC']],
+      limit,
+      offset
+    });
 
-    const total = await Session.countDocuments({ status: 'published' });
+    const totalPages = Math.ceil(count / limit);
 
     res.json({
       success: true,
       data: {
         sessions,
         pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
+          currentPage: page,
+          totalPages,
+          totalSessions: count,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
         }
       }
     });
+
   } catch (error) {
     console.error('Get public sessions error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching sessions'
+      message: 'Error fetching sessions'
     });
   }
 };
 
-// Get user's own sessions
+// Get user's sessions (private)
 const getMySessions = async (req, res) => {
   try {
-    const sessions = await Session.find({ user_id: req.user.id })
-      .sort({ updated_at: -1 });
+    const sessions = await Session.findAll({
+      where: { user_id: req.user.id },
+      order: [['updated_at', 'DESC']]
+    });
 
     res.json({
       success: true,
-      data: {
-        sessions
-      }
+      data: { sessions }
     });
+
   } catch (error) {
     console.error('Get my sessions error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching your sessions'
+      message: 'Error fetching your sessions'
     });
   }
 };
 
-// Get single user session
+// Get single user session (private)
 const getMySession = async (req, res) => {
   try {
     const session = await Session.findOne({
-      _id: req.params.id,
-      user_id: req.user.id
+      where: {
+        id: req.params.id,
+        user_id: req.user.id
+      }
     });
 
     if (!session) {
@@ -101,20 +119,19 @@ const getMySession = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        session
-      }
+      data: { session }
     });
+
   } catch (error) {
     console.error('Get session error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching session'
+      message: 'Error fetching session'
     });
   }
 };
 
-// Save/update draft session
+// Save draft session
 const saveDraft = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -126,57 +143,29 @@ const saveDraft = async (req, res) => {
       });
     }
 
-    const { title, tags = [], json_file_url, description } = req.body;
-    const sessionId = req.body.id;
+    const { title, description, tags, json_file_url } = req.body;
 
-    let session;
-
-    if (sessionId) {
-      // Update existing session
-      session = await Session.findOneAndUpdate(
-        { _id: sessionId, user_id: req.user.id },
-        {
-          title,
-          tags: Array.isArray(tags) ? tags.filter(tag => tag.trim()) : [],
-          json_file_url,
-          description,
-          status: 'draft'
-        },
-        { new: true, runValidators: true }
-      );
-
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          message: 'Session not found'
-        });
-      }
-    } else {
-      // Create new session
-      session = new Session({
-        user_id: req.user.id,
-        title,
-        tags: Array.isArray(tags) ? tags.filter(tag => tag.trim()) : [],
-        json_file_url,
-        description,
-        status: 'draft'
-      });
-
-      await session.save();
-    }
-
-    res.json({
-      success: true,
-      message: sessionId ? 'Draft updated successfully' : 'Draft saved successfully',
-      data: {
-        session
-      }
+    const session = await Session.create({
+      user_id: req.user.id,
+      title,
+      description,
+      tags: tags || [],
+      json_file_url,
+      status: 'draft',
+      is_public: false
     });
+
+    res.status(201).json({
+      success: true,
+      message: 'Draft saved successfully',
+      data: { session }
+    });
+
   } catch (error) {
     console.error('Save draft error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while saving draft'
+      message: 'Error saving draft'
     });
   }
 };
@@ -193,57 +182,29 @@ const publishSession = async (req, res) => {
       });
     }
 
-    const { title, tags = [], json_file_url, description } = req.body;
-    const sessionId = req.body.id;
+    const { title, description, tags, json_file_url } = req.body;
 
-    let session;
+    const session = await Session.create({
+      user_id: req.user.id,
+      title,
+      description,
+      tags: tags || [],
+      json_file_url,
+      status: 'published',
+      is_public: true
+    });
 
-    if (sessionId) {
-      // Update and publish existing session
-      session = await Session.findOneAndUpdate(
-        { _id: sessionId, user_id: req.user.id },
-        {
-          title,
-          tags: Array.isArray(tags) ? tags.filter(tag => tag.trim()) : [],
-          json_file_url,
-          description,
-          status: 'published'
-        },
-        { new: true, runValidators: true }
-      );
-
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          message: 'Session not found'
-        });
-      }
-    } else {
-      // Create and publish new session
-      session = new Session({
-        user_id: req.user.id,
-        title,
-        tags: Array.isArray(tags) ? tags.filter(tag => tag.trim()) : [],
-        json_file_url,
-        description,
-        status: 'published'
-      });
-
-      await session.save();
-    }
-
-    res.json({
+    res.status(201).json({
       success: true,
       message: 'Session published successfully',
-      data: {
-        session
-      }
+      data: { session }
     });
+
   } catch (error) {
     console.error('Publish session error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while publishing session'
+      message: 'Error publishing session'
     });
   }
 };
@@ -260,19 +221,12 @@ const updateSession = async (req, res) => {
       });
     }
 
-    const { title, tags = [], json_file_url, description, status } = req.body;
-
-    const session = await Session.findOneAndUpdate(
-      { _id: req.params.id, user_id: req.user.id },
-      {
-        title,
-        tags: Array.isArray(tags) ? tags.filter(tag => tag.trim()) : [],
-        json_file_url,
-        description,
-        ...(status && { status })
-      },
-      { new: true, runValidators: true }
-    );
+    const session = await Session.findOne({
+      where: {
+        id: req.params.id,
+        user_id: req.user.id
+      }
+    });
 
     if (!session) {
       return res.status(404).json({
@@ -281,18 +235,28 @@ const updateSession = async (req, res) => {
       });
     }
 
+    const { title, description, tags, json_file_url, status, is_public } = req.body;
+
+    await session.update({
+      title: title || session.title,
+      description: description !== undefined ? description : session.description,
+      tags: tags || session.tags,
+      json_file_url: json_file_url || session.json_file_url,
+      status: status || session.status,
+      is_public: is_public !== undefined ? is_public : session.is_public
+    });
+
     res.json({
       success: true,
       message: 'Session updated successfully',
-      data: {
-        session
-      }
+      data: { session }
     });
+
   } catch (error) {
     console.error('Update session error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while updating session'
+      message: 'Error updating session'
     });
   }
 };
@@ -300,9 +264,11 @@ const updateSession = async (req, res) => {
 // Delete session
 const deleteSession = async (req, res) => {
   try {
-    const session = await Session.findOneAndDelete({
-      _id: req.params.id,
-      user_id: req.user.id
+    const session = await Session.findOne({
+      where: {
+        id: req.params.id,
+        user_id: req.user.id
+      }
     });
 
     if (!session) {
@@ -312,15 +278,18 @@ const deleteSession = async (req, res) => {
       });
     }
 
+    await session.destroy();
+
     res.json({
       success: true,
       message: 'Session deleted successfully'
     });
+
   } catch (error) {
     console.error('Delete session error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while deleting session'
+      message: 'Error deleting session'
     });
   }
 };

@@ -1,52 +1,54 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
+const User = require('./User');
 
-const sessionSchema = new mongoose.Schema({
+const Session = sequelize.define('Session', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   user_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  title: {
-    type: String,
-    required: [true, 'Title is required'],
-    trim: true,
-    maxlength: [100, 'Title cannot exceed 100 characters']
-  },
-  tags: [{
-    type: String,
-    trim: true,
-    maxlength: [30, 'Each tag cannot exceed 30 characters']
-  }],
-  json_file_url: {
-    type: String,
-    required: [true, 'JSON file URL is required'],
-    trim: true,
-    validate: {
-      validator: function(v) {
-        return /^https?:\/\/.+/.test(v) || v.startsWith('/') || v.includes('.');
-      },
-      message: 'Please enter a valid URL or file path'
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id'
     }
   },
-  status: {
-    type: String,
-    enum: ['draft', 'published'],
-    default: 'draft'
+  title: {
+    type: DataTypes.STRING(100),
+    allowNull: false
   },
   description: {
-    type: String,
-    maxlength: [500, 'Description cannot exceed 500 characters'],
-    trim: true
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    defaultValue: []
+  },
+  json_file_url: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('draft', 'published'),
+    defaultValue: 'draft'
+  },
+  is_public: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
-  timestamps: {
-    createdAt: 'created_at',
-    updatedAt: 'updated_at'
-  }
+  tableName: 'sessions',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
-// Index for better query performance
-sessionSchema.index({ user_id: 1, status: 1 });
-sessionSchema.index({ status: 1, created_at: -1 });
+// Define associations
+Session.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+User.hasMany(Session, { foreignKey: 'user_id', as: 'sessions' });
 
-module.exports = mongoose.model('Session', sessionSchema);
+module.exports = Session;

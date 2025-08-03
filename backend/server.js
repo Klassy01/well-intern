@@ -28,6 +28,7 @@ app.use(limiter);
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5178',
   'https://localhost:5173'
@@ -36,7 +37,12 @@ const allowedOrigins = [
 // During deployment, allow Render domains
 if (process.env.NODE_ENV === 'production') {
   allowedOrigins.push(/\.onrender\.com$/);
+} else {
+  // Allow all localhost ports in development
+  allowedOrigins.push(/^http:\/\/localhost:\d+$/);
 }
+
+console.log('🌐 CORS allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: allowedOrigins,

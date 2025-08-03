@@ -186,7 +186,9 @@ const getMe = async (req, res) => {
 };
 
 module.exports = {
-  register: [registerValidation, register],
-  login: [loginValidation, login],
-  getMe
+  register,
+  login,
+  getMe,
+  registerValidation,
+  loginValidation
 };

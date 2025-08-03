@@ -15,7 +15,7 @@ const auth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Verify user still exists
-    const user = await User.findById(decoded.userId);
+    const user = await User.findByPk(decoded.id);
     if (!user) {
       return res.status(401).json({ 
         success: false, 
@@ -24,7 +24,7 @@ const auth = async (req, res, next) => {
     }
 
     req.user = {
-      id: decoded.userId,
+      id: decoded.id,
       email: user.email
     };
     

@@ -27,11 +27,9 @@ const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected successfully');
     
-    // Sync models in development
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
-      console.log('📊 Database synced');
-    }
+    // Sync models (create tables if they don't exist)
+    await sequelize.sync({ alter: true });
+    console.log('📊 Database synced');
   } catch (error) {
     console.error('❌ PostgreSQL connection error:', error);
     process.exit(1);

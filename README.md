@@ -6,11 +6,12 @@ A full-stack application that allows users to register, log in securely, view we
 
 - **Frontend**: React.js with TypeScript + Vite
 - **Backend**: Node.js + Express
-- **Database**: MongoDB 
+- **Database**: PostgreSQL (Sequelize ORM)
 - **Authentication**: JWT (jsonwebtoken + bcrypt)
 - **Styling**: Tailwind CSS
 - **Auto-save**: Debounced auto-save every 5 seconds
 - **Form Validation**: React Hook Form + Zod
+- **Deployment**: Render (PostgreSQL + Web Service + Static Site)
 
 ## 📦 Project Structure
 
@@ -342,6 +343,24 @@ The application is ready for deployment on platforms like:
 }
 ```
 
+## 🚀 Deployment
+
+This project is ready for deployment on Render with PostgreSQL:
+
+### Quick Deploy
+1. **Follow the step-by-step guide**: `RENDER_DEPLOYMENT_STEP_BY_STEP.md`
+2. **PostgreSQL Database**: Already configured for Render
+3. **Backend**: Deploy from `backend/` folder
+4. **Frontend**: Deploy from `frontend/` folder
+
+### Key Files
+- `RENDER_DEPLOYMENT_STEP_BY_STEP.md` - Complete deployment guide
+- `POSTGRESQL_MIGRATION.md` - Database migration details
+- `RESPONSIVE_FIXES.md` - UI responsiveness improvements
+
+### Environment Variables
+See the deployment guide for all required environment variables including PostgreSQL connection and JWT secrets.
+
 ## 🤝 Contributing
 
 1. Fork the repository
@@ -350,7 +369,7 @@ The application is ready for deployment on platforms like:
 4. Test thoroughly
 5. Submit a pull request
 
-## � License
+## 📄 License
 
 MIT License - see LICENSE file for details
 

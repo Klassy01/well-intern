@@ -69,7 +69,7 @@ well-intern/
 ### Prerequisites
 
 - Node.js 16+
-- MongoDB (local or Atlas)
+- PostgreSQL (local or cloud)
 - Git
 
 ### Backend Setup
@@ -92,16 +92,22 @@ cp .env.example .env
 4. Update `.env` with your configuration:
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/wellness-platform
+DATABASE_URL=postgresql://user:password@localhost:5432/wellness_platform
+POSTGRES_URL=postgresql://user:password@localhost:5432/wellness_platform
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRE=7d
+JWT_EXPIRE=30d
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5174
 ```
 
-5. Seed the database with sample data (optional):
+5. Set up local PostgreSQL database:
 ```bash
-node seed.js
+# Install PostgreSQL (Ubuntu/Debian)
+sudo apt update && sudo apt install postgresql postgresql-contrib
+
+# Create database and user
+sudo -u postgres createuser --interactive wellness_admin
+sudo -u postgres createdb wellness_platform
 ```
 
 6. Start the backend server:
@@ -154,30 +160,31 @@ Frontend will run on `http://localhost:5173` or `http://localhost:5174`
 
 ## 🗄 Database Schema
 
-### User Schema
-```javascript
-{
-  _id: ObjectId,
-  email: String (unique),
-  password_hash: String,
-  created_at: Date,
-  updated_at: Date
-}
+### User Table (PostgreSQL)
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
-### Session Schema
-```javascript
-{
-  _id: ObjectId,
-  user_id: ObjectId (ref: User),
-  title: String,
-  tags: [String],
-  json_file_url: String,
-  description: String,
-  status: "draft" | "published",
-  created_at: Date,
-  updated_at: Date
-}
+### Sessions Table (PostgreSQL)
+```sql
+CREATE TABLE sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  title VARCHAR(100) NOT NULL,
+  description TEXT,
+  tags TEXT[],
+  json_file_url TEXT NOT NULL,
+  status session_status DEFAULT 'draft',
+  is_public BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ## ✨ Features
@@ -237,9 +244,10 @@ After running the database seeder, you can view sample sessions on the dashboard
 ### Backend (.env)
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/wellness-platform
+DATABASE_URL=postgresql://user:password@localhost:5432/wellness_platform
+POSTGRES_URL=postgresql://user:password@localhost:5432/wellness_platform
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRE=7d
+JWT_EXPIRE=30d
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 ```
@@ -305,7 +313,7 @@ The application is ready for deployment on platforms like:
 
 ### Backend Architecture
 - **Express.js** server with middleware for authentication, CORS, and rate limiting
-- **MongoDB** with Mongoose for data modeling
+- **PostgreSQL** with Sequelize ORM for data modeling
 - **JWT** for stateless authentication
 - **bcrypt** for password hashing
 - **Express Validator** for input validation
